@@ -27,7 +27,7 @@ export default function OverlayWindow() {
   const [showComments, setShowComments] = useState(false);
   const [stompClient, setStompClient] = useState<Client | null>(null);
   const [isDragging, setIsDragging] = useState(false);
-  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
 
   useEffect(() => {
     // URL 파라미터에서 noteId와 content 가져오기
@@ -75,40 +75,57 @@ export default function OverlayWindow() {
     if ((e.target as HTMLElement).closest('.comments-popup')) return;
     
     setIsDragging(true);
-    setDragStart({
-      x: e.clientX - window.screenX,
-      y: e.clientY - window.screenY
+    // 마우스 클릭 위치를 저장 (화면 좌표 기준)
+    setDragOffset({
+      x: e.screenX,
+      y: e.screenY
     });
   };
 
   // 드래그 중
   useEffect(() => {
-    const handleMouseMove = (e: MouseEvent) => {
-      if (!isDragging || !noteId) return;
+    if (!isDragging) return;
 
-      const newX = e.screenX - dragStart.x;
-      const newY = e.screenY - dragStart.y;
+    let lastX = dragOffset.x;
+    let lastY = dragOffset.y;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!noteId) return;
+
+      // 마우스 이동량 계산
+      const deltaX = e.screenX - lastX;
+      const deltaY = e.screenY - lastY;
+
+      // 현재 창 위치 가져오기
+      const currentX = window.screenX;
+      const currentY = window.screenY;
+
+      // 새 위치 계산
+      const newX = currentX + deltaX;
+      const newY = currentY + deltaY;
 
       // Electron API로 창 위치 업데이트
       if (window.electronAPI) {
-        window.electronAPI.updateOverlayPosition(noteId, newX, newY);
+        window.electronAPI.updateOverlayPosition(noteId, Math.round(newX), Math.round(newY));
       }
+
+      // 마지막 위치 업데이트
+      lastX = e.screenX;
+      lastY = e.screenY;
     };
 
     const handleMouseUp = () => {
       setIsDragging(false);
     };
 
-    if (isDragging) {
-      window.addEventListener('mousemove', handleMouseMove);
-      window.addEventListener('mouseup', handleMouseUp);
-    }
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
 
     return () => {
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [isDragging, noteId, dragStart]);
+  }, [isDragging, noteId, dragOffset]);
 
   // 이미지인지 텍스트인지 확인
   const isImage = content.startsWith('data:image/');
