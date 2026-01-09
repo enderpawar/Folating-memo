@@ -15,6 +15,7 @@ declare global {
   interface Window {
     electronAPI?: {
       updateOverlayPosition: (noteId: number, x: number, y: number) => Promise<void>;
+      closeOverlay: (noteId: number) => Promise<void>;
       isElectron: boolean;
     };
   }
@@ -27,7 +28,8 @@ export default function OverlayWindow() {
   const [showComments, setShowComments] = useState(false);
   const [stompClient, setStompClient] = useState<Client | null>(null);
   const [isDragging, setIsDragging] = useState(false);
-  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
+  const [dragStart, setDragStart] = useState({ mouseX: 0, mouseY: 0, windowX: 0, windowY: 0 });
+  const [wasDragged, setWasDragged] = useState(false);
 
   useEffect(() => {
     // URL 파라미터에서 noteId와 content 가져오기
@@ -73,49 +75,67 @@ export default function OverlayWindow() {
   // 드래그 시작
   const handleMouseDown = (e: React.MouseEvent) => {
     if ((e.target as HTMLElement).closest('.comments-popup')) return;
+    if ((e.target as HTMLElement).closest('.close-btn')) return;
     
     setIsDragging(true);
-    // 마우스 클릭 위치를 저장 (화면 좌표 기준)
-    setDragOffset({
-      x: e.screenX,
-      y: e.screenY
+    setWasDragged(false);
+    // 마우스 위치와 창 위치 모두 저장
+    setDragStart({
+      mouseX: e.screenX,
+      mouseY: e.screenY,
+      windowX: window.screenX,
+      windowY: window.screenY
     });
+  };
+
+  // 클릭 처리 (드래그가 아닐 때만)
+  const handleClick = () => {
+    if (!wasDragged) {
+      setShowComments(!showComments);
+    }
+  };
+
+  // 닫기 버튼
+  const handleClose = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (noteId && window.electronAPI) {
+      await window.electronAPI.closeOverlay(noteId);
+    }
   };
 
   // 드래그 중
   useEffect(() => {
-    if (!isDragging) return;
+    if (!isDragging || !noteId) return;
 
-    let lastX = dragOffset.x;
-    let lastY = dragOffset.y;
+    let hasMoved = false;
 
     const handleMouseMove = (e: MouseEvent) => {
-      if (!noteId) return;
+      // 시작점으로부터 마우스가 얼마나 이동했는지 계산
+      const deltaX = e.screenX - dragStart.mouseX;
+      const deltaY = e.screenY - dragStart.mouseY;
 
-      // 마우스 이동량 계산
-      const deltaX = e.screenX - lastX;
-      const deltaY = e.screenY - lastY;
+      // 움직임이 있으면 드래그로 판단
+      if (Math.abs(deltaX) > 2 || Math.abs(deltaY) > 2) {
+        hasMoved = true;
+        setWasDragged(true);
 
-      // 현재 창 위치 가져오기
-      const currentX = window.screenX;
-      const currentY = window.screenY;
+        // 시작 창 위치 + 마우스 이동량 = 새 창 위치
+        const newX = dragStart.windowX + deltaX;
+        const newY = dragStart.windowY + deltaY;
 
-      // 새 위치 계산
-      const newX = currentX + deltaX;
-      const newY = currentY + deltaY;
-
-      // Electron API로 창 위치 업데이트
-      if (window.electronAPI) {
-        window.electronAPI.updateOverlayPosition(noteId, Math.round(newX), Math.round(newY));
+        // Electron API로 창 위치 업데이트
+        if (window.electronAPI) {
+          window.electronAPI.updateOverlayPosition(noteId, Math.round(newX), Math.round(newY));
+        }
       }
-
-      // 마지막 위치 업데이트
-      lastX = e.screenX;
-      lastY = e.screenY;
     };
 
     const handleMouseUp = () => {
       setIsDragging(false);
+      // 드래그하지 않았으면 wasDragged를 false로 유지
+      if (!hasMoved) {
+        setWasDragged(false);
+      }
     };
 
     window.addEventListener('mousemove', handleMouseMove);
@@ -125,7 +145,7 @@ export default function OverlayWindow() {
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [isDragging, noteId, dragOffset]);
+  }, [isDragging, noteId, dragStart]);
 
   // 이미지인지 텍스트인지 확인
   const isImage = content.startsWith('data:image/');
@@ -134,8 +154,16 @@ export default function OverlayWindow() {
     <div 
       className="overlay-window"
       onMouseDown={handleMouseDown}
-      onClick={() => setShowComments(!showComments)}
+      onClick={handleClick}
     >
+      <button 
+        className="close-btn" 
+        onClick={handleClose}
+        onMouseDown={(e) => e.stopPropagation()}
+      >
+        ✕
+      </button>
+      
       {isImage ? (
         <img src={content} alt="sticky note" draggable={false} />
       ) : (
