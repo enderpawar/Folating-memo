@@ -15,6 +15,8 @@ declare global {
   interface Window {
     electronAPI?: {
       updateOverlayPosition: (noteId: number, x: number, y: number) => Promise<void>;
+      updateOverlaySize: (noteId: number, width: number, height: number) => Promise<void>;
+      getWindowSize: (noteId: number) => Promise<{ width: number; height: number }>;
       closeOverlay: (noteId: number) => Promise<void>;
       isElectron: boolean;
     };
@@ -30,6 +32,8 @@ export default function OverlayWindow() {
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ mouseX: 0, mouseY: 0, windowX: 0, windowY: 0 });
   const [wasDragged, setWasDragged] = useState(false);
+  const [isResizing, setIsResizing] = useState(false);
+  const [resizeStart, setResizeStart] = useState({ mouseX: 0, mouseY: 0, width: 0, height: 0 });
 
   useEffect(() => {
     // URL 파라미터에서 noteId와 content 가져오기
@@ -76,6 +80,7 @@ export default function OverlayWindow() {
   const handleMouseDown = (e: React.MouseEvent) => {
     if ((e.target as HTMLElement).closest('.comments-popup')) return;
     if ((e.target as HTMLElement).closest('.close-btn')) return;
+    if ((e.target as HTMLElement).closest('.resize-handle')) return;
     
     setIsDragging(true);
     setWasDragged(false);
@@ -85,6 +90,31 @@ export default function OverlayWindow() {
       mouseY: e.screenY,
       windowX: window.screenX,
       windowY: window.screenY
+    });
+  };
+
+  // 크기 조정 시작
+  const handleResizeMouseDown = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    
+    console.log('[Resize] Handle clicked!');
+    
+    if (!noteId || !window.electronAPI) {
+      console.log('[Resize] noteId or electronAPI missing');
+      return;
+    }
+    
+    // Electron에서 실제 창 크기 가져오기
+    const actualSize = await window.electronAPI.getWindowSize(noteId);
+    
+    console.log(`[Resize] Start - actual window size: ${actualSize.width}x${actualSize.height}, mouse: ${e.screenX},${e.screenY}`);
+    
+    setIsResizing(true);
+    setResizeStart({
+      mouseX: e.screenX,
+      mouseY: e.screenY,
+      width: actualSize.width,
+      height: actualSize.height
     });
   };
 
@@ -108,6 +138,8 @@ export default function OverlayWindow() {
     if (!isDragging || !noteId) return;
 
     let hasMoved = false;
+    let lastUpdateTime = 0;
+    const updateThrottle = 16; // 약 60fps
 
     const handleMouseMove = (e: MouseEvent) => {
       // 시작점으로부터 마우스가 얼마나 이동했는지 계산
@@ -118,6 +150,13 @@ export default function OverlayWindow() {
       if (Math.abs(deltaX) > 2 || Math.abs(deltaY) > 2) {
         hasMoved = true;
         setWasDragged(true);
+
+        // 쓰로틀링: 너무 자주 업데이트하지 않음
+        const now = Date.now();
+        if (now - lastUpdateTime < updateThrottle) {
+          return;
+        }
+        lastUpdateTime = now;
 
         // 시작 창 위치 + 마우스 이동량 = 새 창 위치
         const newX = dragStart.windowX + deltaX;
@@ -146,6 +185,45 @@ export default function OverlayWindow() {
       window.removeEventListener('mouseup', handleMouseUp);
     };
   }, [isDragging, noteId, dragStart]);
+
+  // 크기 조정 중
+  useEffect(() => {
+    if (!isResizing || !noteId) return;
+
+    let lastUpdateTime = 0;
+    const updateThrottle = 50; // 20fps
+
+    const handleMouseMove = (e: MouseEvent) => {
+      const now = Date.now();
+      if (now - lastUpdateTime < updateThrottle) {
+        return;
+      }
+      lastUpdateTime = now;
+
+      const deltaX = e.screenX - resizeStart.mouseX;
+      const deltaY = e.screenY - resizeStart.mouseY;
+
+      const newWidth = Math.max(150, resizeStart.width + deltaX);
+      const newHeight = Math.max(150, resizeStart.height + deltaY);
+
+      if (window.electronAPI) {
+        window.electronAPI.updateOverlaySize(noteId, Math.round(newWidth), Math.round(newHeight));
+      }
+    };
+
+    const handleMouseUp = () => {
+      console.log('[Resize] Mouse up - resize ended');
+      setIsResizing(false);
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isResizing, noteId, resizeStart]);
 
   // 이미지인지 텍스트인지 확인
   const isImage = content.startsWith('data:image/');
@@ -195,6 +273,12 @@ export default function OverlayWindow() {
       {comments.length > 0 && (
         <div className="comment-badge">{comments.length}</div>
       )}
+
+      <div 
+        className="resize-handle"
+        onMouseDown={handleResizeMouseDown}
+        onClick={(e) => e.stopPropagation()}
+      />
     </div>
   );
 }

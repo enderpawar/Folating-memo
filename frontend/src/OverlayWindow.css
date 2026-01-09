@@ -7,24 +7,41 @@
 }
 
 html, body {
-  width: 100%;
-  height: 100%;
+  width: 100vw;
+  height: 100vh;
+  max-width: 100vw;
+  max-height: 100vh;
   overflow: hidden;
   margin: 0;
   padding: 0;
+  position: fixed;
+  top: 0;
+  left: 0;
 }
 
 #root {
-  width: 100%;
-  height: 100%;
+  width: 100vw;
+  height: 100vh;
+  max-width: 100vw;
+  max-height: 100vh;
   margin: 0;
   padding: 0;
+  overflow: hidden;
+  position: fixed;
+  top: 0;
+  left: 0;
 }
 
 .overlay-window {
-  width: 100%;
-  height: 100%;
-  position: relative;
+  width: 100vw;
+  height: 100vh;
+  max-width: 100vw;
+  max-height: 100vh;
+  min-width: 100vw;
+  min-height: 100vh;
+  position: fixed;
+  top: 0;
+  left: 0;
   cursor: move;
   background: rgba(255, 255, 255, 0.95);
   border-radius: 16px;
@@ -65,26 +82,36 @@ html, body {
 
 .close-btn:hover {
   background: rgba(255, 59, 48, 0.9);
-  transform: scale(1.1);
+  width: 36px;
+  height: 36px;
+  top: 6px;
+  right: 6px;
 }
 
 .overlay-window img {
   width: 100%;
   height: 100%;
+  max-width: 100%;
+  max-height: 100%;
   object-fit: contain;
+  object-position: center;
   pointer-events: none;
+  display: block;
 }
 
 .text-content {
   padding: 2rem;
   font-size: 1.1rem;
   color: #2d3748;
+  width: 100%;
   height: 100%;
+  max-height: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
   text-align: center;
   word-wrap: break-word;
+  overflow: hidden;
   background: linear-gradient(135deg, #ffd93d 0%, #fff89a 100%);
   font-weight: 500;
   line-height: 1.7;
@@ -110,12 +137,40 @@ html, body {
   animation: pulse 2s infinite;
 }
 
+.resize-handle {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  width: 40px;
+  height: 40px;
+  cursor: nwse-resize;
+  z-index: 101;
+}
+
+.resize-handle::before {
+  content: '';
+  position: absolute;
+  bottom: 4px;
+  right: 4px;
+  width: 0;
+  height: 0;
+  border-style: solid;
+  border-width: 0 0 20px 20px;
+  border-color: transparent transparent rgba(0, 0, 0, 0.4) transparent;
+}
+
+.overlay-window:hover .resize-handle::before {
+  border-color: transparent transparent rgba(0, 0, 0, 0.7) transparent;
+}
+
 @keyframes pulse {
   0%, 100% {
-    transform: scale(1);
+    opacity: 1;
+    box-shadow: 0 4px 12px rgba(255, 75, 75, 0.4);
   }
   50% {
-    transform: scale(1.1);
+    opacity: 0.8;
+    box-shadow: 0 4px 16px rgba(255, 75, 75, 0.6);
   }
 }
 
@@ -123,7 +178,8 @@ html, body {
   position: absolute;
   top: 50%;
   left: 50%;
-  transform: translate(-50%, -50%);
+  margin-top: -210px;
+  margin-left: -160px;
   background: white;
   border-radius: 16px;
   padding: 1.8rem;

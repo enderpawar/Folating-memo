@@ -38,9 +38,14 @@ function createSettingsWindow() {
 function createOverlayWindow(noteData) {
   const { id, content, positionX, positionY, width, height } = noteData;
   
+  const fixedWidth = width || 300;
+  const fixedHeight = height || 300;
+  
   const overlayWindow = new BrowserWindow({
-    width: width || 300,
-    height: height || 300,
+    width: fixedWidth,
+    height: fixedHeight,
+    minWidth: 150,
+    minHeight: 150,
     x: positionX || 100,
     y: positionY || 100,
     transparent: true,
@@ -53,6 +58,33 @@ function createOverlayWindow(noteData) {
       nodeIntegration: false,
       contextIsolation: true,
       preload: path.join(__dirname, 'preload.js')
+    }
+  });
+  
+  // 창의 현재 크기를 저장
+  overlayWindow.allowedSize = { width: fixedWidth, height: fixedHeight };
+  overlayWindow.isManualResize = false;
+  overlayWindow.isResizing = false; // 리사이즈 중인지 표시
+  
+  // resize 이벤트로 크기 변경 감지 및 즉시 복원
+  overlayWindow.on('resize', () => {
+    if (overlayWindow && !overlayWindow.isDestroyed() && overlayWindow.allowedSize) {
+      const [currentWidth, currentHeight] = overlayWindow.getSize();
+      const { width, height } = overlayWindow.allowedSize;
+      
+      // 크기가 변경되었다면 즉시 복원
+      if (currentWidth !== width || currentHeight !== height) {
+        const [x, y] = overlayWindow.getPosition();
+        overlayWindow.setBounds({ x, y, width, height }, false);
+      }
+    }
+  });
+  
+  // will-resize로 크기 변경 차단 (비활성화 모드에서는 불필요하지만 보험용)
+  overlayWindow.on('will-resize', (event) => {
+    // resizable: false일 때는 모든 크기 변경 차단
+    if (!overlayWindow.isResizable()) {
+      event.preventDefault();
     }
   });
 
@@ -88,8 +120,50 @@ function closeOverlayWindow(noteId) {
 function updateOverlayPosition(noteId, x, y) {
   const window = overlayWindows.get(noteId);
   if (window && !window.isDestroyed()) {
-    window.setPosition(x, y);
+    // 위치만 변경
+    window.setPosition(x, y, false);
   }
+}
+
+function updateOverlaySize(noteId, width, height) {
+  const window = overlayWindows.get(noteId);
+  if (window && !window.isDestroyed()) {
+    // 최소 크기 제한
+    const finalWidth = Math.max(150, width);
+    const finalHeight = Math.max(150, height);
+    
+    // 새 크기 저장
+    window.allowedSize = { width: finalWidth, height: finalHeight };
+    
+    // 일시적으로 resizable 활성화 및 크기 제한 제거
+    window.setResizable(true);
+    window.setMinimumSize(0, 0);
+    window.setMaximumSize(0, 0);
+    
+    // 현재 위치 가져오기
+    const [currentX, currentY] = window.getPosition();
+    
+    // setBounds로 크기 변경 (위치는 유지)
+    window.setBounds({
+      x: currentX,
+      y: currentY,
+      width: finalWidth,
+      height: finalHeight
+    }, false);
+    
+    // 즉시 resizable 비활성화 (드래그 중 크기 증가 완전 차단)
+    window.setMinimumSize(finalWidth, finalHeight);
+    window.setResizable(false);
+  }
+}
+
+function getWindowSize(noteId) {
+  const window = overlayWindows.get(noteId);
+  if (window && !window.isDestroyed()) {
+    const [width, height] = window.getSize();
+    return { width, height };
+  }
+  return { width: 300, height: 300 };
 }
 
 // IPC Handlers
@@ -103,6 +177,14 @@ ipcMain.handle('close-overlay', (event, noteId) => {
 
 ipcMain.handle('update-overlay-position', (event, noteId, x, y) => {
   updateOverlayPosition(noteId, x, y);
+});
+
+ipcMain.handle('update-overlay-size', (event, noteId, width, height) => {
+  updateOverlaySize(noteId, width, height);
+});
+
+ipcMain.handle('get-window-size', (event, noteId) => {
+  return getWindowSize(noteId);
 });
 
 ipcMain.handle('get-all-notes', () => {

@@ -11,6 +11,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // 오버레이 창 위치 업데이트
   updateOverlayPosition: (noteId, x, y) => ipcRenderer.invoke('update-overlay-position', noteId, x, y),
   
+  // 오버레이 창 크기 업데이트
+  updateOverlaySize: (noteId, width, height) => ipcRenderer.invoke('update-overlay-size', noteId, width, height),
+  
+  // 현재 창 크기 가져오기
+  getWindowSize: (noteId) => ipcRenderer.invoke('get-window-size', noteId),
+  
   // 모든 노트 정보 가져오기
   getAllNotes: () => ipcRenderer.invoke('get-all-notes'),
   
