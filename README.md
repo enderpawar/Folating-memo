@@ -12,7 +12,7 @@
 
 - **일상 속 불편함**: 중요한 이미지나 메모를 빠르게 확인하고 싶지만 창을 계속 전환해야 하는 번거로움
 - **단순한 해결책**: 복사 → 붙여넣기, 단 두 단계로 바탕화면에 포스트잇 생성
-- **실시간 협업**: WebSocket 기반 실시간 코멘트로 다른 사용자와 소통
+- **로컬 우선**: 불필요한 네트워크 오버헤드 없이 빠른 로컬 저장
 
 ## ✨ 주요 기능
 
@@ -26,205 +26,156 @@
 - 프레임 없는(Frameless) 깔끔한 디자인
 - 작업 중에도 항상 보이는 포스트잇
 
-### 3. 드래그 앤 드롭
+### 3. 드래그 & 리사이즈
 - 마우스로 자유롭게 포스트잇 위치 이동
-- 부드러운 Delta 기반 드래그 구현
-- 실시간 위치 업데이트
+- 우측 하단 핸들로 크기 조절
+- 실시간 위치/크기 자동 저장
 
-### 4. 실시간 코멘트
-- WebSocket(STOMP) 기반 실시간 통신
-- 포스트잇 클릭 시 코멘트 팝업 표시
-- 다른 사용자의 코멘트 즉시 반영
-- 코멘트 개수 뱃지 표시
+### 4. 로컬 데이터 저장
+- electron-store로 JSON 기반 로컬 저장
+- 앱 재시작 시 자동으로 포스트잇 복구
+- 빠른 읽기/쓰기 성능
 
 ### 5. 설정 창
 - 모든 포스트잇 관리
-- 새 포스트잇 생성 (클립보드 붙여넣기)
+- 새 포스트잇 생성 (클립보드 붙여넣기 / 드래그 앤 드롭)
 - 포스트잇 목록 보기
-- 코멘트 추가 및 확인
+- 개별 포스트잇 삭제
 
 ## 🛠️ 기술 스택
 
 ### Frontend
 - **Electron 33.2.1**: 데스크톱 애플리케이션 프레임워크
-- **React 18**: UI 라이브러리
-- **TypeScript**: 타입 안정성
-- **Vite**: 빠른 빌드 도구
-- **SockJS + STOMP**: WebSocket 통신
-- **Axios**: HTTP 클라이언트
+- **React 19**: UI 라이브러리
+- **TypeScript**: 타입 안전성
+- **Vite**: 빠른 개발 빌드
 
-### Backend
-- **Spring Boot 3.2.1**: Java 백엔드 프레임워크
-- **Java 17**: OpenJDK
-- **Spring WebSocket**: 실시간 통신
-- **Spring Data JPA**: 데이터베이스 ORM
-- **H2 Database**: 인메모리 데이터베이스
-- **Maven**: 빌드 도구
+### Storage
+- **electron-store 11**: 로컬 JSON 기반 데이터 저장소
+- 자동 영속성(Auto-persistence)
+- 앱 재시작 시 데이터 복원
 
-## 📦 설치 및 실행
+### Architecture
+- **Pure Electron**: 백엔드 서버 불필요
+- **IPC Communication**: Renderer ↔ Main 프로세스 통신
+- **Event-driven**: 실시간 UI 업데이트
 
-### 사전 요구사항
-- Node.js 18+
-- Java 17 (OpenJDK)
-- npm 또는 yarn
+## 🚀 시작하기
 
-### 1. 백엔드 실행
+### 필수 요구사항
+- Node.js 20.x 이상
+- npm 10.x 이상
 
-```bash
-cd backend
-
-# Maven Wrapper로 실행 (Windows)
-.\mvnw.cmd spring-boot:run
-
-# 또는 Maven 직접 실행
-mvn spring-boot:run
-```
-
-백엔드가 `http://localhost:8080`에서 실행됩니다.
-
-### 2. 프론트엔드 실행
+### 설치
 
 ```bash
-cd frontend
+# 프로젝트 클론
+git clone [repository-url]
+cd anything
 
 # 의존성 설치
 npm install
+```
 
-# Electron 앱 실행
+### 실행
+
+```bash
+# 개발 모드로 실행
 npm run electron:dev
+```
+
+앱이 실행되면:
+1. 설정 창이 열립니다
+2. Ctrl+V로 클립보드 내용을 바탕화면에 붙여넣기
+3. 포스트잇을 드래그로 이동하거나 우측 하단 핸들로 크기 조절
+4. X 버튼으로 개별 포스트잇 닫기
+
+### 빌드
+
+```bash
+# 프로덕션 빌드
+npm run build
+
+# 실행 파일 생성 (Electron Builder)
+npm run electron:build
 ```
 
 ## 📁 프로젝트 구조
 
 ```
 anything/
-├── backend/                    # Spring Boot 백엔드
-│   ├── src/main/java/com/stickyboard/
-│   │   ├── StickyBoardApplication.java
-│   │   ├── config/
-│   │   │   ├── WebSocketConfig.java      # WebSocket 설정
-│   │   │   └── CorsConfig.java           # CORS 설정
-│   │   ├── model/
-│   │   │   ├── StickyNote.java           # 포스트잇 엔티티
-│   │   │   └── Comment.java              # 코멘트 엔티티
-│   │   ├── repository/
-│   │   │   ├── StickyNoteRepository.java
-│   │   │   └── CommentRepository.java
-│   │   ├── service/
-│   │   │   ├── StickyNoteService.java
-│   │   │   └── CommentService.java
-│   │   ├── controller/
-│   │   │   ├── StickyNoteController.java  # REST API
-│   │   │   ├── CommentController.java
-│   │   │   └── WebSocketController.java   # WebSocket 핸들러
-│   │   └── dto/
-│   │       ├── StickyNoteDto.java
-│   │       └── CommentDto.java
-│   ├── pom.xml
-│   └── application.yml
-│
-└── frontend/                   # Electron + React 프론트엔드
-    ├── electron/
-    │   ├── main.js            # Electron 메인 프로세스
-    │   └── preload.js         # Preload 스크립트 (IPC 브릿지)
-    ├── src/
-    │   ├── App.tsx            # 라우팅 (설정창/오버레이창 구분)
-    │   ├── SettingsWindow.tsx # 설정창 컴포넌트
-    │   ├── SettingsWindow.css
-    │   ├── OverlayWindow.tsx  # 오버레이창 컴포넌트
-    │   ├── OverlayWindow.css
-    │   └── main.tsx
-    ├── package.json
-    └── vite.config.ts
-
+├── electron/
+│   ├── main.js          # Electron 메인 프로세스
+│   └── preload.js       # IPC API 노출
+├── src/
+│   ├── SettingsWindow.tsx    # 설정 창 UI
+│   ├── OverlayWindow.tsx     # 오버레이 포스트잇 UI
+│   └── *.css                 # 스타일
+├── package.json
+└── vite.config.ts
 ```
 
-## 🎮 사용 방법
+## 🎨 UI/UX
 
-### 1. 포스트잇 생성
-1. 설정창에서 이미지나 텍스트를 클립보드에 복사
-2. 설정창 붙여넣기 영역에 **Ctrl+V**
-3. 자동으로 바탕화면에 오버레이 창 생성 ✨
+### 설정 창
+- 모든 포스트잇 목록 표시
+- 그리드 레이아웃으로 미리보기
+- 포스트잇 개수 표시
+- Ctrl+V 또는 드래그 앤 드롭으로 추가
 
-### 2. 포스트잇 이동
-- 포스트잇을 마우스로 드래그하여 원하는 위치로 이동
+### 오버레이 포스트잇
+- 투명 배경 (opacity: 0.95)
+- 항상 위(Always on Top)
+- 프레임 없는 디자인
+- X 닫기 버튼
+- 우측 하단 리사이즈 핸들
 
-### 3. 코멘트 확인
-1. 포스트잇 클릭
-2. 코멘트 팝업 표시 (코멘트가 있는 경우)
-3. 코멘트 뱃지로 개수 확인
+## 🐛 버그 수정 이력
 
-### 4. 코멘트 작성
-1. 설정창에서 포스트잇 클릭
-2. 코멘트 패널에 작성
-3. 실시간으로 다른 사용자와 공유
+### 드래그 버그 수정 (2025-01-10)
+- **문제**: 드래그 시 창이 엉뚱한 위치로 이동
+- **원인**: `event.clientX/Y` (뷰포트 기준) vs `event.screenX/Y` (스크린 기준) 혼용
+- **해결**: screenX/Y로 통일 + Delta 방식 드래그 구현
 
-### 5. 포스트잇 삭제
-- 설정창에서 포스트잇의 ❌ 버튼 클릭
+### 리사이즈 버그 수정 (2025-01-10)
+- **문제**: 리사이즈 핸들 클릭 시 아무 반응 없음
+- **원인**: `window.innerWidth/Height` (HTML 요소 크기) vs `window.outerWidth/Height` (창 전체 크기) 혼용
+- **해결**: `getWindowSize()` IPC로 정확한 창 크기 가져오기
 
-## 🔧 개발 특징
+## 🏗️ 아키텍처 개선 (2025-01-10)
 
-### Electron 아키텍처
-- **Main Process**: 설정창과 여러 오버레이창 관리
-- **Renderer Process**: React 기반 UI
-- **IPC 통신**: Preload 스크립트로 보안 강화
+### Before: Spring Boot + Electron
+- Spring Boot 3.2.1 백엔드
+- H2 Database
+- WebSocket (STOMP)
+- axios HTTP 통신
 
-### WebSocket 실시간 통신
-```
-클라이언트 → /app/note/create → 서버 → /topic/notes → 모든 클라이언트
-```
+### After: Pure Electron
+- electron-store (로컬 JSON)
+- IPC 통신
+- 이벤트 기반 실시간 업데이트
+- **네트워크 오버헤드 제거**
 
-### 드래그 구현
-- Delta 기반: 이전 위치와 현재 위치의 차이 계산
-- Screen 좌표: `screenX/Y`로 정확한 마우스 추적
-- Electron API: `BrowserWindow.setPosition()`으로 창 이동
+**왜?** 로컬 데스크톱 앱에서 HTTP/WebSocket은 불필요한 복잡도!
 
-### CORS 설정
-- WebSocket과 REST API 모두 CORS 허용
-- 개발 환경: `localhost:5173`, `localhost:5174`, `localhost:3000`
+## 📝 향후 개선 사항
 
-## 🚀 빌드 (추후 구현)
-
-```bash
-# 프론트엔드 빌드
-cd frontend
-npm run electron:build
-
-# 백엔드 빌드
-cd backend
-.\mvnw.cmd package
-```
-
-## 🐛 알려진 이슈
-
-- [ ] 오버레이 창이 여러 개일 때 Z-index 관리 필요
-- [ ] 백엔드 종료 시 데이터 영구 저장 (H2 → MySQL/PostgreSQL)
-- [ ] Electron 앱 자동 업데이트 기능
-- [ ] 포스트잇 크기 조절 기능
-- [ ] 색상 선택 기능
-
-## 📝 개발 일지
-
-**2026년 1월 8일**
-- ✅ Spring Boot 백엔드 구조 설계 및 구현
-- ✅ Electron + React 프론트엔드 설정
-- ✅ WebSocket 실시간 통신 구현
-- ✅ 바탕화면 오버레이 창 구현
-- ✅ 드래그 앤 드롭 기능 구현
-- ✅ 클립보드 붙여넣기 기능 구현
-- ✅ 실시간 코멘트 시스템 구현
-- ✅ CORS 설정 및 디버깅
-- ✅ 드래그 성능 최적화
-
-## 🤝 기여
-
-이 프로젝트는 개인 학습 및 실험 프로젝트입니다.
+- [ ] 포스트잇 색상/테마 설정
+- [ ] 폰트 크기 조절
+- [ ] 포스트잇 검색 기능
+- [ ] 키보드 단축키 확장
+- [ ] 윈도우 스냅(Snap) 기능
+- [ ] 멀티 모니터 지원 개선
 
 ## 📄 라이선스
 
 MIT License
 
+## 👨‍💻 개발자
+
+- 개발: [Your Name]
+- 문의: [Your Email]
+
 ---
 
-**Made with ❤️ by Jinwoo**  
-*"복잡함 속에서 간단함을 발견하다"*
+**"복잡함 속에서 간단함을 발견하다"** - 떠메모 팀
