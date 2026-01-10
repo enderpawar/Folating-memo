@@ -28,6 +28,7 @@ declare global {
 
 export default function SettingsWindow() {
   const [notes, setNotes] = useState<StickyNote[]>([]);
+  const [username, setUsername] = useState('User');
 
   // 초기 노트 로드
   useEffect(() => {
@@ -56,29 +57,26 @@ export default function SettingsWindow() {
     }
   };
 
+    // 기존 노트 불러오기
+    axios.get<StickyNote[]>('http://localhost:8080/api/notes')
+      .then(response => setNotes(response.data))
+      .catch(error => console.error('Failed to load notes:', error));
+
+    return () => {
+      client.deactivate();
+    };
+  }, []);
+
+  // 사용자명 설정
+  useEffect(() => {
+    const name = localStorage.getItem('username') || `User${Math.floor(Math.random() * 1000)}`;
+    setUsername(name);
+    localStorage.setItem('username', name);
+  }, []);
+
   // 클립보드 붙여넣기
   const handlePaste = async (e: React.ClipboardEvent) => {
-    const items = e.clipboardData.items;
-    
-    for (const item of Array.from(items)) {
-      if (item.type.startsWith('image/')) {
-        const file = item.getAsFile();
-        if (file) {
-          const reader = new FileReader();
-          reader.onload = async (event) => {
-            const base64 = event.target?.result as string;
-            await createNote(base64);
-          };
-          reader.readAsDataURL(file);
-        }
-      } else if (item.type === 'text/plain') {
-        item.getAsString(async (text) => {
-          await createNote(text);
-        });
-      }
-    }
-  };
-
+    const items = e.clipboardData?.items;
   // 드래그 & 드롭 처리
   const handleDrop = async (e: React.DragEvent) => {
     e.preventDefault();
@@ -105,10 +103,6 @@ export default function SettingsWindow() {
     }
   };
 
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-  };
-
   // 노트 생성
   const createNote = async (content: string) => {
     if (!window.electronAPI) return;
@@ -123,6 +117,7 @@ export default function SettingsWindow() {
 
     try {
       const newNote = await window.electronAPI.createNote(noteData);
+      // 실시간 이벤트로 자동 업데이트됨
       console.log('Note created:', newNote);
     } catch (error) {
       console.error('Failed to create note:', error);
@@ -135,65 +130,89 @@ export default function SettingsWindow() {
     
     try {
       await window.electronAPI.deleteNote(id);
+      // 실시간 이벤트로 자동 업데이트됨
+    } catch (error) {
+      console.error('Failed to delete note:', error);
+    }
+  };
     } catch (error) {
       console.error('Failed to delete note:', error);
     }
   };
 
-  // 이미지 여부 확인
-  const isImage = (content: string) => content.startsWith('data:image/');
-
+  // 코멘트 로드
+  const loadComments = async (noteId: number) => {
+    try {
+      const response = await axios.get<Comment[]>(`http://localhost:8080/api/comments/note/${noteId}`);
+      setComments(prev => ({
+        ...prev,
+        [noteId]: response.data
   return (
-    <div 
-      className="settings-window" 
-      onPaste={handlePaste}
-      onDrop={handleDrop}
-      onDragOver={handleDragOver}
-    >
+    <div className="settings-window" onPaste={handlePaste}>
       <div className="header">
         <h1>🎯 Sticky Board</h1>
         <p>Ctrl+V로 클립보드의 이미지나 텍스트를 바탕화면에 띄우세요!</p>
-        <p className="note-count">현재 {notes.length}개의 포스트잇이 있습니다</p>
       </div>
 
       <div className="content">
         <div className="notes-grid">
-          <h2>포스트잇 목록</h2>
-          
-          {notes.length === 0 ? (
-            <div className="empty-state">
-              <p>📝 포스트잇이 없습니다</p>
-              <p>Ctrl+V로 이미지나 텍스트를 붙여넣어보세요!</p>
-            </div>
-          ) : (
-            <div className="grid">
-              {notes.map(note => (
-                <div key={note.id} className="note-card">
-                  {isImage(note.content) ? (
-                    <img src={note.content} alt="sticky note" className="note-preview-image" />
-                  ) : (
-                    <div className="note-preview-text">{note.content}</div>
+          <h2>포스트잇 목록 ({notes.length}개)</h2>
+          <div className="grid">
+            {notes.map(note => (
+              <div 
+                key={note.id} 
+                className="note-card"
+                onClick={() => handleNoteClick(note)}
+              >
+                {note.type === 'IMAGE' ? (
+                  <img src={note.content} alt="note" />
+                ) : (
+                  <p>{note.content}</p>
+                )}
+                <button 
+                  className="delete-btn"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleDelete(note.id);
+                  }}
+                >
+                  ×
+                </button>
+                <div className="note-info">
+                  <span>{note.createdBy}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {selectedNote && (
+          <div className="comments-panel">
+            <h2>코멘트</h2>
+            <div className="comments-list">
+              {(comments[selectedNote.id] || []).map((comment, idx) => (
+                <div key={idx} className="comment">
+                  <strong>{comment.author}</strong>: {comment.content}
+                  {comment.createdAt && (
+                    <span className="time">
+                      {new Date(comment.createdAt).toLocaleString()}
+                    </span>
                   )}
-                  <div className="note-info">
-                    <span className="note-id">#{note.id}</span>
-                    <span className="note-size">{note.width}x{note.height}</span>
-                  </div>
-                  <button 
-                    className="delete-btn" 
-                    onClick={() => handleDelete(note.id)}
-                    title="삭제"
-                  >
-                    ✕
-                  </button>
                 </div>
               ))}
             </div>
-          )}
-        </div>
-      </div>
-
-      <div className="footer">
-        <p>💡 드래그 & 드롭으로도 추가할 수 있습니다!</p>
+            <div className="comment-input">
+              <input
+                type="text"
+                value={newComment}
+                onChange={(e) => setNewComment(e.target.value)}
+                onKeyPress={(e) => e.key === 'Enter' && handleAddComment()}
+                placeholder="코멘트 입력..."
+              />
+              <button onClick={handleAddComment}>전송</button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -2,24 +2,26 @@ const { contextBridge, ipcRenderer } = require('electron');
 
 // Electron API를 안전하게 렌더러 프로세스에 노출
 contextBridge.exposeInMainWorld('electronAPI', {
-  // 오버레이 창 생성
+  // 오버레이 창 관리
   createOverlay: (noteData) => ipcRenderer.invoke('create-overlay', noteData),
-  
-  // 오버레이 창 닫기
   closeOverlay: (noteId) => ipcRenderer.invoke('close-overlay', noteId),
-  
-  // 오버레이 창 위치 업데이트
   updateOverlayPosition: (noteId, x, y) => ipcRenderer.invoke('update-overlay-position', noteId, x, y),
-  
-  // 오버레이 창 크기 업데이트
   updateOverlaySize: (noteId, width, height) => ipcRenderer.invoke('update-overlay-size', noteId, width, height),
-  
-  // 현재 창 크기 가져오기
   getWindowSize: (noteId) => ipcRenderer.invoke('get-window-size', noteId),
   
-  // 모든 노트 정보 가져오기
+  // 데이터 관리 API
   getAllNotes: () => ipcRenderer.invoke('get-all-notes'),
+  createNote: (noteData) => ipcRenderer.invoke('create-note', noteData),
+  updateNote: (noteId, updates) => ipcRenderer.invoke('update-note', noteId, updates),
+  deleteNote: (noteId) => ipcRenderer.invoke('delete-note', noteId),
+  updateNotePosition: (noteId, x, y) => ipcRenderer.invoke('update-note-position', noteId, x, y),
+  updateNoteSize: (noteId, width, height) => ipcRenderer.invoke('update-note-size', noteId, width, height),
   
-  // 현재 창 타입 확인
+  // 실시간 이벤트 리스너
+  onNoteCreated: (callback) => ipcRenderer.on('note-created', (event, note) => callback(note)),
+  onNoteUpdated: (callback) => ipcRenderer.on('note-updated', (event, note) => callback(note)),
+  onNoteDeleted: (callback) => ipcRenderer.on('note-deleted', (event, noteId) => callback(noteId)),
+  
+  // Electron 확인
   isElectron: true
 });
